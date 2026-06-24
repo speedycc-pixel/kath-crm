@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KATH CRM — Data Recovery</title>
+<style>
+  :root{
+    --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+    --bg:#f8fafc; --card:#ffffff;
+    --blue:#2563eb; --blue-dark:#1d4ed8;
+    --good:#16a34a; --good-bg:#f0fdf4; --good-line:#bbf7d0;
+    --warn:#b45309; --warn-bg:#fffbeb; --warn-line:#fde68a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55; padding:20px 16px 64px;
+  }
+  .wrap{max-width:640px; margin:0 auto}
+  h1{font-size:22px; margin:0 0 2px; letter-spacing:-0.01em}
+  .sub{color:var(--muted); font-size:14px; margin:0 0 20px}
+  .safe{
+    background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a8a;
+    border-radius:12px; padding:12px 14px; font-size:13.5px; margin-bottom:18px;
+  }
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:16px;
+    padding:20px; margin-bottom:16px;
+  }
+  .status{display:flex; gap:12px; align-items:flex-start}
+  .dot{width:14px; height:14px; border-radius:50%; margin-top:5px; flex:0 0 auto}
+  .status h2{font-size:17px; margin:0 0 4px}
+  .status p{margin:0; color:var(--muted); font-size:14px}
+  .found .dot{background:var(--good)}
+  .found{background:var(--good-bg); border-color:var(--good-line)}
+  .empty .dot{background:var(--warn)}
+  .empty{background:var(--warn-bg); border-color:var(--warn-line)}
+  .count{font-size:34px; font-weight:700; letter-spacing:-0.02em; margin:14px 0 2px}
+  .count small{font-size:14px; font-weight:500; color:var(--muted)}
+  button{
+    -webkit-appearance:none; appearance:none; border:0; cursor:pointer;
+    font-size:16px; font-weight:600; border-radius:12px; padding:15px 18px;
+    width:100%; margin-top:10px; color:#fff; background:var(--blue);
+  }
+  button:active{background:var(--blue-dark)}
+  button.ghost{background:#fff; color:var(--blue); border:1.5px solid var(--blue)}
+  .keyrow{
+    border-top:1px solid var(--line); padding:12px 0; font-size:13.5px;
+  }
+  .keyrow:first-child{border-top:0}
+  .keyname{font-weight:600; word-break:break-all}
+  .keyval{
+    color:var(--muted); white-space:pre-wrap; word-break:break-word;
+    margin-top:4px; max-height:160px; overflow:auto;
+    background:var(--bg); border-radius:8px; padding:8px 10px; font-size:12.5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  .hint{font-size:12.5px; color:var(--muted); margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>KATH CRM — Data Recovery</h1>
+  <p class="sub">Ανάκτηση δεδομένων / Read-only recovery tool</p>
+
+  <div class="safe">
+    🔒 This page only <b>reads</b> what is stored in your browser. It never deletes
+    or changes anything. Run it on the same phone and same Chrome you used for the app.
+  </div>
+
+  <div id="statusCard" class="card status">
+    <div class="dot"></div>
+    <div>
+      <h2 id="statusTitle">Checking your browser's storage…</h2>
+      <p id="statusText">One moment.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="count"><span id="num">—</span> <small>items found in storage</small></div>
+    <button id="downloadBtn" disabled>💾 Download recovery file</button>
+    <button id="copyBtn" class="ghost" disabled>📋 Copy everything to clipboard</button>
+    <p class="hint">The download is a single <code>.json</code> file with everything found. Save it somewhere safe, then send it to me.</p>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 8px">What was found</h2>
+    <div id="dump"><p class="sub" style="margin:0">Scanning…</p></div>
+  </div>
+</div>
+
+<script>
+(async function(){
+  var result = { capturedAt:new Date().toISOString(), origin:location.origin, localStorage:{}, sessionStorage:{}, indexedDB:{} };
+  var itemCount = 0;
+  var dump = document.getElementById('dump');
+  dump.innerHTML = '';
+
+  function addRow(label, value){
+    var row = document.createElement('div'); row.className='keyrow';
+    var n = document.createElement('div'); n.className='keyname'; n.textContent = label;
+    var v = document.createElement('div'); v.className='keyval'; v.textContent = value;
+    row.appendChild(n); row.appendChild(v); dump.appendChild(row);
+  }
+
+  // localStorage
+  try{
+    for(var i=0;i<localStorage.length;i++){
+      var k = localStorage.key(i); var val = localStorage.getItem(k);
+      result.localStorage[k] = val; itemCount++;
+      addRow('localStorage: '+k, val);
+    }
+  }catch(e){ result.localStorage_error = String(e); }
+
+  // sessionStorage
+  try{
+    for(var j=0;j<sessionStorage.length;j++){
+      var sk = sessionStorage.key(j); var sval = sessionStorage.getItem(sk);
+      result.sessionStorage[sk] = sval; itemCount++;
+      addRow('sessionStorage: '+sk, sval);
+    }
+  }catch(e){ result.sessionStorage_error = String(e); }
+
+  // IndexedDB (best effort)
+  try{
+    if(indexedDB && indexedDB.databases){
+      var dbs = await indexedDB.databases();
+      for(var d=0; d<dbs.length; d++){
+        var name = dbs[d].name; if(!name) continue;
+        try{
+          var data = await dumpDB(name);
+          result.indexedDB[name] = data;
+          var c = 0; for(var s in data){ c += (data[s]||[]).length; }
+          itemCount += c;
+          addRow('IndexedDB: '+name, JSON.stringify(data).slice(0,800));
+        }catch(e){ result.indexedDB[name] = {error:String(e)}; }
+      }
+    }
+  }catch(e){ result.indexedDB_error = String(e); }
+
+  function dumpDB(name){
+    return new Promise(function(resolve,reject){
+      var req = indexedDB.open(name);
+      req.onsuccess = function(){
+        var db = req.result; var out = {};
+        var stores = Array.prototype.slice.call(db.objectStoreNames);
+        if(stores.length===0){ db.close(); return resolve(out); }
+        var tx = db.transaction(stores,'readonly'); var pending = stores.length;
+        stores.forEach(function(sn){
+          var all = tx.objectStore(sn).getAll();
+          all.onsuccess = function(){ out[sn] = all.result; if(--pending===0){ db.close(); resolve(out);} };
+          all.onerror = function(){ out[sn] = {error:'read failed'}; if(--pending===0){ db.close(); resolve(out);} };
+        });
+      };
+      req.onerror = function(){ reject(req.error); };
+    });
+  }
+
+  // Update UI
+  document.getElementById('num').textContent = itemCount;
+  var card = document.getElementById('statusCard');
+  var title = document.getElementById('statusTitle');
+  var text = document.getElementById('statusText');
+
+  if(itemCount > 0){
+    card.className = 'card status found';
+    title.textContent = 'Data found in your browser ✓';
+    text.textContent = 'Tap "Download recovery file" below, save it, and send it to me.';
+    document.getElementById('downloadBtn').disabled = false;
+    document.getElementById('copyBtn').disabled = false;
+  } else {
+    card.className = 'card status empty';
+    title.textContent = 'No saved data found at this address';
+    text.textContent = 'The storage for this address appears empty. Make sure you opened this on the exact same phone and Chrome as the app — then tell me what you see.';
+    dump.innerHTML = '<p class="sub" style="margin:0">Nothing was stored under this web address in this browser.</p>';
+  }
+
+  var payload = JSON.stringify(result, null, 2);
+
+  document.getElementById('downloadBtn').onclick = function(){
+    var blob = new Blob([payload], {type:'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'kath-crm-recovery.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  };
+  document.getElementById('copyBtn').onclick = async function(){
+    try{ await navigator.clipboard.writeText(payload); this.textContent='✓ Copied'; }
+    catch(e){ this.textContent='Copy failed — use Download instead'; }
+  };
+})();
+</script>
+</body>
+</html>
